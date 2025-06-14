@@ -40,6 +40,20 @@
             border: 1px solid #d1d5db;
             background-color: white;
         }
+        #import-export-modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        #import-export-modal.active {
+            display: flex;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -52,6 +66,7 @@
                      <div class="mt-4 sm:mt-0 flex items-center space-x-2">
                          <select id="month-select" class="date-selector"></select>
                          <select id="year-select" class="date-selector"></select>
+                         <button id="import-export-btn" class="date-selector bg-indigo-500 text-white hover:bg-indigo-600">Экспорт/Импорт</button>
                      </div>
                 </div>
                 <p class="text-gray-500 mt-2" id="dashboard-subtitle">Данные за</p>
@@ -166,13 +181,21 @@
              </div>
         </div>
     </div>
+    
+    <!-- Модальное окно для Экспорта/Импорта -->
+    <div id="import-export-modal" class="items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg mx-4">
+            <h2 class="text-2xl font-bold mb-4">Экспорт / Импорт данных</h2>
+            <p class="text-sm text-gray-600 mb-4">Чтобы перенести данные между устройствами, скопируйте текст из этого поля на одном устройстве и вставьте его в это же поле на другом.</p>
+            <textarea id="import-export-data" class="w-full h-40 p-2 border rounded-md"></textarea>
+            <div class="flex justify-end space-x-4 mt-4">
+                 <button id="import-btn" class="date-selector bg-green-500 text-white hover:bg-green-600">Импорт</button>
+                 <button id="close-modal-btn" class="date-selector bg-gray-200 hover:bg-gray-300">Закрыть</button>
+            </div>
+        </div>
+    </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
+    <script>
         const today = new Date();
         let selectedMonth = today.getMonth();
         let selectedYear = today.getFullYear();
@@ -182,70 +205,37 @@
         const extraSourceNames = ['Инстаграм', 'Телеграм', 'Рассылка', 'Био Инстаграм', 'Деңгей анықтау'];
         
         let combinedChart = null;
-        let db;
-        let unsubscribe;
-        let appId;
-        let debounceTimer;
+        let leadDataStore = {};
+        let extraDataStore = {};
 
-        // --- ЛОГИКА FIREBASE ---
-        
-        async function initializeFirebase() {
-            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-            
-            if (Object.keys(firebaseConfig).length === 0) { console.error("Firebase config is empty."); return; }
-            
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            const auth = getAuth(app);
-            setLogLevel('debug');
-
+        function saveDataToLocalStorage() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
+                localStorage.setItem('leadDataStore', JSON.stringify(leadDataStore));
+                localStorage.setItem('extraDataStore', JSON.stringify(extraDataStore));
+                 console.log("Data saved to localStorage");
+            } catch (e) {
+                console.error("Ошибка сохранения данных:", e);
+            }
+        }
+
+        function loadDataFromLocalStorage() {
+            try {
+                const savedLeads = localStorage.getItem('leadDataStore');
+                const savedExtra = localStorage.getItem('extraDataStore');
+
+                if (savedLeads) {
+                    leadDataStore = JSON.parse(savedLeads);
                 }
-                console.log("Firebase Auth successful:", auth.currentUser.uid);
-                setupApp();
-            } catch (error) { console.error("Firebase Auth Error:", error); }
+                if (savedExtra) {
+                    extraDataStore = JSON.parse(savedExtra);
+                }
+                 console.log("Data loaded from localStorage");
+            } catch (e) {
+                console.error("Ошибка загрузки данных:", e);
+                leadDataStore = {};
+                extraDataStore = {};
+            }
         }
-        
-        function setupRealtimeListener() {
-            if (unsubscribe) unsubscribe();
-            const docRef = doc(db, "artifacts", appId, "public/data", "monthlyData", `${selectedYear}-${selectedMonth}`);
-            unsubscribe = onSnapshot(docRef, (docSnap) => {
-                console.log("Firestore data received");
-                renderUI(docSnap.exists() ? docSnap.data() : {});
-            });
-        }
-
-        async function updateFirestore(tableId, rowIndex, colIndex, value) {
-             clearTimeout(debounceTimer);
-             debounceTimer = setTimeout(async () => {
-                const docRef = doc(db, "artifacts", appId, "public/data", "monthlyData", `${selectedYear}-${selectedMonth}`);
-                const isLeadTable = tableId === 'leads-data-table';
-                const fieldName = isLeadTable ? 'leadData' : 'extraData';
-                
-                try {
-                    const docSnap = await getDoc(docRef);
-                    const currentData = docSnap.exists() ? docSnap.data() : {};
-                    
-                    const sourceNames = isLeadTable ? leadSourceNames : extraSourceNames;
-                    const days = getDaysInMonth(selectedYear, selectedMonth);
-                    let tableData = currentData[fieldName] || createNewData(sourceNames, days);
-
-                    if (tableData[rowIndex] && tableData[rowIndex].values) {
-                        tableData[rowIndex].values[colIndex] = value;
-                    }
-                    
-                    await setDoc(docRef, { [fieldName]: tableData }, { merge: true });
-                    console.log(`Firestore updated: ${fieldName}`);
-                } catch (error) { console.error("Error updating Firestore:", error); }
-            }, 300);
-        }
-
-        // --- ОСНОВНАЯ ЛОГИКА ПРИЛОЖЕНИЯ ---
 
         function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
         
@@ -253,17 +243,8 @@
             return sourceNames.map(source => ({ source: source, values: Array(days).fill(0) }));
         }
         
-        function renderUI(serverData = {}) {
-            const days = getDaysInMonth(selectedYear, selectedMonth);
-            const leadData = serverData.leadData || createNewData(leadSourceNames, days);
-            const extraData = serverData.extraData || createNewData(extraSourceNames, days);
-            
-            createTable('leads-data-table', leadData, true);
-            createTable('extra-data-table', extraData, false);
-            calculateTotals(leadData, extraData);
-        }
-
-        function createTable(containerId, rawData, isLeadTable) {
+        function createTable(containerId, sourceNames, isLeadTable) {
+            const dataStore = isLeadTable ? leadDataStore : extraDataStore;
             const tableContainer = document.getElementById(containerId);
             if (!tableContainer) return;
             
@@ -273,7 +254,13 @@
             
             tableHead.innerHTML = ''; tableBody.innerHTML = ''; tableFoot.innerHTML = '';
 
-            const days = rawData[0]?.values.length || getDaysInMonth(selectedYear, selectedMonth);
+            const dataKey = `${selectedYear}-${selectedMonth}`;
+            if (!dataStore[dataKey]) {
+                const days = getDaysInMonth(selectedYear, selectedMonth);
+                dataStore[dataKey] = sourceNames.map(source => ({ source: source, values: Array(days).fill(0) }));
+            }
+            const rawData = dataStore[dataKey];
+            const days = rawData[0].values.length;
 
             let headerClass = isLeadTable ? 'bg-gray-100' : 'bg-gray-200';
             let headerRow = `<tr class="${headerClass}"><th class="px-2 py-3 sticky left-0 ${headerClass} z-10">Источник</th>`;
@@ -300,8 +287,12 @@
             } else { tableFoot.innerHTML = footerRowHtml; }
         }
 
-        function calculateTotals(leadData = [], extraData = []) {
+        function calculateTotals() {
+            const dataKey = `${selectedYear}-${selectedMonth}`;
+            const leadData = leadDataStore[dataKey] || [];
+            const extraData = extraDataStore[dataKey] || [];
             const days = getDaysInMonth(selectedYear, selectedMonth);
+
             const calculateTable = (tableId, data) => {
                 const dailyTotals = Array(days).fill(0);
                 if (data.length > 0) {
@@ -428,7 +419,20 @@
             selectedMonth = parseInt(document.getElementById('month-select').value);
             selectedYear = parseInt(document.getElementById('year-select').value);
             document.getElementById('dashboard-subtitle').textContent = `Данные за ${monthNames[selectedMonth]} ${selectedYear}`;
-            setupRealtimeListener();
+            
+            const days = getDaysInMonth(selectedYear, selectedMonth);
+            const dataKey = `${selectedYear}-${selectedMonth}`;
+            
+            if(!leadDataStore[dataKey]) leadDataStore[dataKey] = createNewData(leadSourceNames, days);
+            if(!extraDataStore[dataKey]) extraDataStore[dataKey] = createNewData(extraSourceNames, days);
+
+            createTable('leads-data-table', leadDataStore[dataKey], true);
+            createTable('extra-data-table', extraDataStore[dataKey], false);
+            calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey]);
+
+            populateDaySelector(days);
+            runCalculator();
+            runReverseCalculator();
         }
 
         function setupApp() {
@@ -439,9 +443,43 @@
                     const colIndex = parseInt(e.target.dataset.col);
                     const value = parseInt(e.target.value, 10) || 0;
                     
-                    updateFirestore(tableId, rowIndex, colIndex, value);
+                    const dataKey = `${selectedYear}-${selectedMonth}`;
+                    const isLeadTable = tableId === 'leads-data-table';
+                    const dataStore = isLeadTable ? leadDataStore : extraDataStore;
+
+                    if (dataStore[dataKey] && dataStore[dataKey][rowIndex]) {
+                        dataStore[dataKey][rowIndex].values[colIndex] = value;
+                        calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey]);
+                        saveDataToLocalStorage();
+                    }
                 }
             });
+
+            const modal = document.getElementById('import-export-modal');
+            document.getElementById('import-export-btn').addEventListener('click', () => {
+                 const allData = { leads: leadDataStore, extra: extraDataStore };
+                 document.getElementById('import-export-data').value = JSON.stringify(allData, null, 2);
+                 modal.classList.add('active');
+            });
+             document.getElementById('close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+             document.getElementById('import-btn').addEventListener('click', () => {
+                 try {
+                     const dataToImport = JSON.parse(document.getElementById('import-export-data').value);
+                     if (dataToImport.leads && dataToImport.extra) {
+                         leadDataStore = dataToImport.leads;
+                         extraDataStore = dataToImport.extra;
+                         saveDataToLocalStorage();
+                         handleDateChange();
+                         modal.classList.remove('active');
+                         alert('Данные успешно импортированы!');
+                     } else {
+                         alert('Ошибка: неверный формат данных.');
+                     }
+                 } catch(e) {
+                     alert('Ошибка: не удалось прочитать данные. Убедитесь, что текст вставлен правильно.');
+                     console.error("Import error:", e);
+                 }
+             });
 
             document.getElementById('month-select').addEventListener('change', handleDateChange);
             document.getElementById('year-select').addEventListener('change', handleDateChange);
@@ -449,13 +487,14 @@
             document.getElementById('calculator-steps').addEventListener('input', runCalculator);
             document.getElementById('reverse-calculator-steps').addEventListener('input', runReverseCalculator);
             
+            loadDataFromLocalStorage();
             populateSelectors(); 
             initCombinedChart();
             handleDateChange();
         }
         
         // --- ЗАПУСК ПРИЛОЖЕНИЯ ---
-        document.addEventListener('DOMContentLoaded', initializeFirebase);
+        document.addEventListener('DOMContentLoaded', setupApp);
     </script>
 </body>
 </html>
