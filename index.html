@@ -34,22 +34,26 @@
              background-color: transparent;
              border-color: transparent;
         }
-        .date-selector {
+        .date-selector, .action-button {
             padding: 0.5rem 1rem;
             border-radius: 0.5rem;
             border: 1px solid #d1d5db;
             background-color: white;
+            transition: all 0.2s ease;
+            cursor: pointer;
         }
         #import-export-modal {
             display: none;
             position: fixed;
-            z-index: 100;
+            z-index: 1000;
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(0,0,0,0.4);
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
         }
         #import-export-modal.active {
             display: flex;
@@ -66,7 +70,7 @@
                      <div class="mt-4 sm:mt-0 flex items-center space-x-2">
                          <select id="month-select" class="date-selector"></select>
                          <select id="year-select" class="date-selector"></select>
-                         <button id="import-export-btn" class="date-selector bg-indigo-500 text-white hover:bg-indigo-600">Экспорт/Импорт</button>
+                         <button id="import-export-btn" class="action-button bg-indigo-500 text-white hover:bg-indigo-600">Экспорт/Импорт</button>
                      </div>
                 </div>
                 <p class="text-gray-500 mt-2" id="dashboard-subtitle">Данные за</p>
@@ -287,12 +291,8 @@
             } else { tableFoot.innerHTML = footerRowHtml; }
         }
 
-        function calculateTotals() {
-            const dataKey = `${selectedYear}-${selectedMonth}`;
-            const leadData = leadDataStore[dataKey] || [];
-            const extraData = extraDataStore[dataKey] || [];
+        function calculateTotals(leadData = [], extraData = []) {
             const days = getDaysInMonth(selectedYear, selectedMonth);
-
             const calculateTable = (tableId, data) => {
                 const dailyTotals = Array(days).fill(0);
                 if (data.length > 0) {
