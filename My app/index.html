@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Простой ввод данных</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+        .data-input, .calc-input {
+            width: 100%;
+            min-width: 60px;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            text-align: center;
+            transition: all 0.2s;
+            background-color: #f9fafb;
+        }
+        .data-input:focus, .calc-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background-color: white;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        .data-table-input {
+             background-color: transparent;
+             border-color: transparent;
+        }
+        .date-selector {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            background-color: white;
+        }
+        #import-export-modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        #import-export-modal.active {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+        <!-- Блок с таблицей лидов -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <header class="mb-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                     <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Лидогенерация</h1>
+                     <div class="mt-4 sm:mt-0 flex items-center space-x-2">
+                         <select id="month-select" class="date-selector"></select>
+                         <select id="year-select" class="date-selector"></select>
+                         <button id="import-export-btn" class="date-selector bg-indigo-500 text-white hover:bg-indigo-600">Экспорт/Импорт</button>
+                     </div>
+                </div>
+                <p class="text-gray-500 mt-2" id="dashboard-subtitle">Данные за</p>
+            </header>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500 whitespace-nowrap" id="leads-data-table">
+                    <thead class="text-xs text-gray-700 uppercase" id="leads-data-table-head"></thead>
+                    <tbody id="leads-data-table-body"></tbody>
+                    <tfoot class="font-bold text-gray-800" id="leads-data-table-foot">
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        
+        <!-- БЛОК: Дополнительные данные -->
+        <div class="bg-slate-50 p-6 rounded-2xl shadow-lg">
+            <header class="mb-6">
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Қосымша Лид</h1>
+            </header>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500 whitespace-nowrap" id="extra-data-table">
+                    <thead class="text-xs text-gray-700 uppercase" id="extra-data-table-head"></thead>
+                    <tbody id="extra-data-table-body"></tbody>
+                    <tfoot class="font-bold text-gray-800" id="extra-data-table-foot"></tfoot>
+                </table>
+            </div>
+        </div>
+
+
+        <!-- Блок с калькулятором (ПЛАН) -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Калькулятор (План)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="flex flex-col space-y-2">
+                    <label for="day-selector" class="font-medium text-gray-700">Выберите день для расчета</label>
+                    <select id="day-selector" class="date-selector"></select>
+                </div>
+                <div class="flex flex-col space-y-2 bg-gray-50 p-4 rounded-lg">
+                    <label class="font-medium text-gray-700">Итог за день (Лиды)</label>
+                    <div id="calc-initial-leads" class="text-2xl font-bold text-gray-900">0</div>
+                </div>
+            </div>
+            <hr class="my-6">
+            <div id="calculator-steps" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center"><label class="font-medium text-gray-700">ОП (конверсия)</label><div class="flex items-center space-x-2"><input type="number" id="calc-op-percent" class="calc-input w-24" value="22"><span class="text-gray-500">%</span></div><div id="calc-op-result" class="text-xl font-bold text-indigo-600 bg-indigo-50 p-4 rounded-lg text-center">0</div></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center"><label class="font-medium text-gray-700">Доходимость</label><div class="flex items-center space-x-2"><input type="number" id="calc-show-percent" class="calc-input w-24" value="70"><span class="text-gray-500">%</span></div><div id="calc-show-result" class="text-xl font-bold text-purple-600 bg-purple-50 p-4 rounded-lg text-center">0</div></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center"><label class="font-medium text-gray-700">Пробный чек (конверсия)</label><div class="flex items-center space-x-2"><input type="number" id="calc-trial-percent" class="calc-input w-24" value="35"><span class="text-gray-500">%</span></div><div id="calc-trial-result" class="text-xl font-bold text-emerald-600 bg-emerald-50 p-4 rounded-lg text-center">0</div></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center"><label class="font-medium text-gray-700">Средний чек</label><div class="flex items-center space-x-2"><input type="number" id="calc-avg-check" class="calc-input w-36" value="135000"><span class="text-gray-500">тг</span></div><div class="flex flex-col items-center bg-green-100 p-4 rounded-lg"><label class="text-sm font-medium text-green-800">Касса (Выручка)</label><div id="calc-revenue-result" class="text-2xl font-bold text-green-800">0 ₸</div></div></div>
+            </div>
+        </div>
+
+        <!-- Обратный калькулятор (Факт) -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Нәтиже (Факт)</h2>
+             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                 <div class="flex flex-col space-y-2 bg-gray-50 p-4 rounded-lg">
+                    <label class="font-medium text-gray-700">Итог за день (Лиды)</label>
+                    <div id="reverse-calc-initial-leads" class="text-2xl font-bold text-gray-900">0</div>
+                </div>
+             </div>
+            <hr class="my-6">
+            <div id="reverse-calculator-steps" class="space-y-4">
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                    <label class="font-medium text-gray-700">Пробный тіркелді</label>
+                    <input type="number" id="reverse-calc-registered-trials" class="calc-input" value="0">
+                    <div class="flex flex-col items-center bg-gray-50 p-4 rounded-lg">
+                         <label class="text-sm font-medium text-gray-800">Конверсия в назначение</label>
+                         <div id="reverse-calc-registered-conv-result" class="text-xl font-bold text-gray-800">0%</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                    <label class="font-medium text-gray-700">Пробный берілді</label>
+                    <input type="number" id="reverse-calc-given-trials" class="calc-input" value="0">
+                    <div class="flex flex-col items-center bg-indigo-50 p-4 rounded-lg">
+                        <label class="text-sm font-medium text-indigo-800">ОП Конверсия</label>
+                        <div id="reverse-calc-op-conv-result" class="text-xl font-bold text-indigo-800">0%</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                    <label class="font-medium text-gray-700">Доходимость</label>
+                     <input type="number" id="reverse-calc-attended-trials" class="calc-input" value="0">
+                     <div class="flex flex-col items-center bg-purple-50 p-4 rounded-lg">
+                        <label class="text-sm font-medium text-purple-800">Процент доходимости</label>
+                        <div id="reverse-calc-show-perc-result" class="text-xl font-bold text-purple-800">0%</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                    <label class="font-medium text-gray-700">Чек саны</label>
+                    <input type="number" id="reverse-calc-checks-count" class="calc-input" value="0">
+                    <div class="flex flex-col items-center bg-emerald-50 p-4 rounded-lg">
+                        <label class="text-sm font-medium text-emerald-800">Конверсия в чек</label>
+                        <div id="reverse-calc-trial-conv-result" class="text-xl font-bold text-emerald-800">0%</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                    <label class="font-medium text-gray-700">Фактическая касса (Выручка)</label>
+                    <input type="number" id="reverse-calc-revenue" class="calc-input" value="0">
+                    <div class="flex flex-col items-center bg-green-100 p-4 rounded-lg">
+                        <label class="text-sm font-medium text-green-800">Средний чек</label>
+                        <div id="reverse-calc-avg-check-result" class="text-2xl font-bold text-green-800">0 ₸</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Единый блок для дашборда -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+             <h2 class="text-2xl font-bold text-gray-800 mb-4">Итоги за день</h2>
+             <div class="h-80">
+                <canvas id="combined-daily-chart"></canvas>
+             </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для Экспорта/Импорта -->
+    <div id="import-export-modal" class="items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg mx-4">
+            <h2 class="text-2xl font-bold mb-4">Экспорт / Импорт данных</h2>
+            <p class="text-sm text-gray-600 mb-4">Чтобы перенести данные между устройствами, скопируйте текст из этого поля на одном устройстве и вставьте его в это же поле на другом.</p>
+            <textarea id="import-export-data" class="w-full h-40 p-2 border rounded-md"></textarea>
+            <div class="flex justify-end space-x-4 mt-4">
+                 <button id="import-btn" class="date-selector bg-green-500 text-white hover:bg-green-600">Импорт</button>
+                 <button id="close-modal-btn" class="date-selector bg-gray-200 hover:bg-gray-300">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const today = new Date();
+        let selectedMonth = today.getMonth();
+        let selectedYear = today.getFullYear();
+        
+        const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+        const leadSourceNames = ['Сайт', 'Ватсап', 'Ген лид', 'Тик ток', 'Блогер'];
+        const extraSourceNames = ['Инстаграм', 'Телеграм', 'Рассылка', 'Био Инстаграм', 'Деңгей анықтау'];
+        
+        let combinedChart = null;
+        let leadDataStore = {};
+        let extraDataStore = {};
+
+        function saveDataToLocalStorage() {
+            try {
+                localStorage.setItem('leadDataStore', JSON.stringify(leadDataStore));
+                localStorage.setItem('extraDataStore', JSON.stringify(extraDataStore));
+                 console.log("Data saved to localStorage");
+            } catch (e) {
+                console.error("Ошибка сохранения данных:", e);
+            }
+        }
+
+        function loadDataFromLocalStorage() {
+            try {
+                const savedLeads = localStorage.getItem('leadDataStore');
+                const savedExtra = localStorage.getItem('extraDataStore');
+
+                if (savedLeads) {
+                    leadDataStore = JSON.parse(savedLeads);
+                }
+                if (savedExtra) {
+                    extraDataStore = JSON.parse(savedExtra);
+                }
+                 console.log("Data loaded from localStorage");
+            } catch (e) {
+                console.error("Ошибка загрузки данных:", e);
+                leadDataStore = {};
+                extraDataStore = {};
+            }
+        }
+
+        function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
+        
+        function createNewData(sourceNames, days) {
+            return sourceNames.map(source => ({ source: source, values: Array(days).fill(0) }));
+        }
+        
+        function createTable(containerId, sourceNames, isLeadTable) {
+            const dataStore = isLeadTable ? leadDataStore : extraDataStore;
+            const tableContainer = document.getElementById(containerId);
+            if (!tableContainer) return;
+            
+            const tableHead = tableContainer.querySelector('thead');
+            const tableBody = tableContainer.querySelector('tbody');
+            const tableFoot = tableContainer.querySelector('tfoot');
+            
+            tableHead.innerHTML = ''; tableBody.innerHTML = ''; tableFoot.innerHTML = '';
+
+            const dataKey = `${selectedYear}-${selectedMonth}`;
+            if (!dataStore[dataKey]) {
+                const days = getDaysInMonth(selectedYear, selectedMonth);
+                dataStore[dataKey] = sourceNames.map(source => ({ source: source, values: Array(days).fill(0) }));
+            }
+            const rawData = dataStore[dataKey];
+            const days = rawData[0].values.length;
+
+            let headerClass = isLeadTable ? 'bg-gray-100' : 'bg-gray-200';
+            let headerRow = `<tr class="${headerClass}"><th class="px-2 py-3 sticky left-0 ${headerClass} z-10">Источник</th>`;
+            for (let i = 1; i <= days; i++) { headerRow += `<th class="px-2 py-3 text-center w-20">${i}</th>`; }
+            headerRow += `<th class="px-2 py-3 text-center sticky right-0 ${headerClass} z-10">Итог</th></tr>`;
+            tableHead.innerHTML = headerRow;
+
+            rawData.forEach((row, rowIndex) => {
+                let bodyRow = `<tr class="bg-white even:bg-gray-50"><th class="px-2 py-2 font-medium text-gray-900 sticky left-0 z-10 bg-inherit">${row.source}</th>`;
+                row.values.forEach((val, colIndex) => { bodyRow += `<td class="px-1 py-1"><input type="number" value="${val}" class="data-input data-table-input" data-table-id="${containerId}" data-row="${rowIndex}" data-col="${colIndex}"></td>`; });
+                bodyRow += `<td id="${containerId}-row-total-${rowIndex}" class="px-2 py-2 font-bold text-center sticky right-0 z-10 bg-inherit">0</td></tr>`;
+                tableBody.innerHTML += bodyRow;
+            });
+            
+            let footerRowHtml = `<tr class="${headerClass}"><th class="px-2 py-3 sticky left-0 z-10 ${headerClass}">Итог за день</th>`;
+            for (let i = 0; i < days; i++) { footerRowHtml += `<td id="${containerId}-col-total-${i}" class="px-2 py-2 text-center">0</td>`; }
+            footerRowHtml += `<td id="${containerId}-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 ${headerClass}">0</td></tr>`;
+            
+            if (isLeadTable) {
+                let combinedFooterRow = `<tr class="bg-blue-100 text-blue-800"><th class="px-2 py-3 sticky left-0 z-10 bg-blue-100">Общий итог за день</th>`;
+                for (let i = 0; i < days; i++) { combinedFooterRow += `<td id="combined-col-total-${i}" class="px-2 py-2 text-center">0</td>`; }
+                combinedFooterRow += `<td id="combined-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 bg-blue-100">0</td></tr>`;
+                tableFoot.innerHTML = footerRowHtml + combinedFooterRow;
+            } else { tableFoot.innerHTML = footerRowHtml; }
+        }
+
+        function calculateTotals(leadData = [], extraData = []) {
+            const days = getDaysInMonth(selectedYear, selectedMonth);
+            const calculateTable = (tableId, data) => {
+                const dailyTotals = Array(days).fill(0);
+                if (data.length > 0) {
+                    data.forEach((row, rowIndex) => {
+                        const rowTotal = row.values.reduce((sum, val) => sum + (val || 0), 0);
+                        document.querySelector(`#${tableId}-row-total-${rowIndex}`).textContent = rowTotal;
+                    });
+                    for (let i = 0; i < days; i++) { dailyTotals[i] = data.reduce((sum, row) => sum + (row.values[i] || 0), 0); }
+                    dailyTotals.forEach((total, i) => { document.querySelector(`#${tableId}-col-total-${i}`).textContent = total; });
+                    document.querySelector(`#${tableId}-grand-total`).textContent = dailyTotals.reduce((a, b) => a + b, 0);
+                }
+                return dailyTotals;
+            };
+
+            const leadDailyTotals = calculateTable('leads-data-table', leadData);
+            const extraDailyTotals = calculateTable('extra-data-table', extraData);
+            const combinedDailyTotals = Array(days).fill(0).map((_, i) => leadDailyTotals[i] + extraDailyTotals[i]);
+            combinedDailyTotals.forEach((total, i) => { document.querySelector(`#combined-col-total-${i}`).textContent = total; });
+            document.querySelector('#combined-grand-total').textContent = combinedDailyTotals.reduce((a, b) => a + b, 0);
+
+            updateCombinedChart(leadDailyTotals, extraDailyTotals);
+            runCalculator();
+            runReverseCalculator();
+        }
+
+        function runCalculator() {
+            const daySelector = document.getElementById('day-selector');
+            if (!daySelector || !daySelector.value) return;
+            const selectedDayIndex = parseInt(daySelector.value) - 1;
+            if (selectedDayIndex < 0) return;
+
+            const colTotalEl = document.querySelector(`#leads-data-table-col-total-${selectedDayIndex}`);
+            const initialLeads = colTotalEl ? parseInt(colTotalEl.textContent) : 0;
+            document.getElementById('calc-initial-leads').textContent = initialLeads;
+            
+            const opPercent = parseFloat(document.getElementById('calc-op-percent').value) || 0;
+            const showPercent = parseFloat(document.getElementById('calc-show-percent').value) || 0;
+            const trialPercent = parseFloat(document.getElementById('calc-trial-percent').value) || 0;
+            const avgCheck = parseFloat(document.getElementById('calc-avg-check').value) || 0;
+            const opResult = (initialLeads * opPercent / 100);
+            const showResult = (opResult * showPercent / 100);
+            const trialResult = (showResult * trialPercent / 100);
+            const revenueResult = trialResult * avgCheck;
+            document.getElementById('calc-op-result').textContent = opResult.toFixed(1);
+            document.getElementById('calc-show-result').textContent = showResult.toFixed(1);
+            document.getElementById('calc-trial-result').textContent = trialResult.toFixed(1);
+            document.getElementById('calc-revenue-result').textContent = `${revenueResult.toLocaleString('ru-RU', {maximumFractionDigits: 0})} ₸`;
+        }
+        
+        function runReverseCalculator() {
+            const daySelector = document.getElementById('day-selector');
+            if (!daySelector || !daySelector.value) return;
+            const selectedDayIndex = parseInt(daySelector.value) - 1;
+            if (selectedDayIndex < 0) return;
+            
+            const initialLeadsEl = document.querySelector(`#leads-data-table-col-total-${selectedDayIndex}`);
+            const initialLeads = initialLeadsEl ? parseInt(initialLeadsEl.textContent) : 0;
+            document.getElementById('reverse-calc-initial-leads').textContent = initialLeads;
+
+            const registeredTrials = parseFloat(document.getElementById('reverse-calc-registered-trials').value) || 0;
+            const givenTrials = parseFloat(document.getElementById('reverse-calc-given-trials').value) || 0;
+            const attendedTrials = parseFloat(document.getElementById('reverse-calc-attended-trials').value) || 0;
+            const checksCount = parseFloat(document.getElementById('reverse-calc-checks-count').value) || 0;
+            const revenue = parseFloat(document.getElementById('reverse-calc-revenue').value) || 0;
+
+            const registeredConversion = initialLeads > 0 ? (registeredTrials / initialLeads) * 100 : 0;
+            const opConversion = registeredTrials > 0 ? (givenTrials / registeredTrials) * 100 : 0;
+            const showPercentage = givenTrials > 0 ? (attendedTrials / givenTrials) * 100 : 0;
+            const checkConversion = attendedTrials > 0 ? (checksCount / attendedTrials) * 100 : 0;
+            const avgCheck = checksCount > 0 ? revenue / checksCount : 0;
+            
+            document.getElementById('reverse-calc-registered-conv-result').textContent = `${registeredConversion.toFixed(1)}%`;
+            document.getElementById('reverse-calc-op-conv-result').textContent = `${opConversion.toFixed(1)}%`;
+            document.getElementById('reverse-calc-show-perc-result').textContent = `${showPercentage.toFixed(1)}%`;
+            document.getElementById('reverse-calc-trial-conv-result').textContent = `${checkConversion.toFixed(1)}%`;
+            document.getElementById('reverse-calc-avg-check-result').textContent = `${avgCheck.toLocaleString('ru-RU', {maximumFractionDigits: 0})} ₸`;
+        }
+        
+        function initCombinedChart() {
+            const ctx = document.getElementById('combined-daily-chart').getContext('2d');
+            const leadGradient = ctx.createLinearGradient(0, 0, 0, 320); leadGradient.addColorStop(0, 'rgba(59, 130, 246, 0.9)'); leadGradient.addColorStop(1, 'rgba(129, 140, 248, 0.9)');
+            const extraGradient = ctx.createLinearGradient(0, 0, 0, 320); extraGradient.addColorStop(0, 'rgba(16, 185, 129, 0.8)'); extraGradient.addColorStop(1, 'rgba(52, 211, 153, 0.8)');
+            combinedChart = new Chart(ctx, {
+                type: 'bar', data: { labels: [], datasets: [ { label: 'Лиды', data: [], backgroundColor: leadGradient, borderRadius: 4 }, { label: 'Доп. данные', data: [], backgroundColor: extraGradient, borderRadius: 4 } ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, stacked: true, grid: { drawBorder: false } }, x: { stacked: true, grid: { display: false } } } }
+            });
+        }
+        
+        function updateCombinedChart(leadTotals, extraTotals) {
+             if (!combinedChart) return;
+             const days = getDaysInMonth(selectedYear, selectedMonth);
+             combinedChart.data.labels = Array.from({length: days}, (_, i) => i + 1);
+             combinedChart.data.datasets[0].data = leadTotals;
+             combinedChart.data.datasets[1].data = extraTotals;
+             combinedChart.update();
+        }
+
+        function populateDaySelector(days) {
+            const daySelector = document.getElementById('day-selector');
+            if (!daySelector) return;
+            daySelector.innerHTML = '';
+            for(let i = 1; i <= days; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `${i} ${monthNames[selectedMonth]}`;
+                daySelector.appendChild(option);
+            }
+            if (selectedYear === today.getFullYear() && selectedMonth === today.getMonth()) {
+                daySelector.value = today.getDate();
+            } else { daySelector.value = 1; }
+        }
+
+        function populateSelectors() {
+            const monthSelect = document.getElementById('month-select');
+            const yearSelect = document.getElementById('year-select');
+            monthNames.forEach((name, index) => { const option = document.createElement('option'); option.value = index; option.textContent = name; monthSelect.appendChild(option); });
+            const currentYear = today.getFullYear();
+            for (let i = currentYear + 1; i >= currentYear - 5; i--) { const option = document.createElement('option'); option.value = i; option.textContent = i; yearSelect.appendChild(option); }
+            monthSelect.value = selectedMonth;
+            yearSelect.value = selectedYear;
+        }
+        
+        function handleDateChange() {
+            selectedMonth = parseInt(document.getElementById('month-select').value);
+            selectedYear = parseInt(document.getElementById('year-select').value);
+            document.getElementById('dashboard-subtitle').textContent = `Данные за ${monthNames[selectedMonth]} ${selectedYear}`;
+            
+            const days = getDaysInMonth(selectedYear, selectedMonth);
+            const dataKey = `${selectedYear}-${selectedMonth}`;
+            
+            if(!leadDataStore[dataKey]) leadDataStore[dataKey] = createNewData(leadSourceNames, days);
+            if(!extraDataStore[dataKey]) extraDataStore[dataKey] = createNewData(extraSourceNames, days);
+
+            createTable('leads-data-table', leadDataStore[dataKey], true);
+            createTable('extra-data-table', extraDataStore[dataKey], false);
+            calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey]);
+
+            populateDaySelector(days);
+            runCalculator();
+            runReverseCalculator();
+        }
+
+        function setupApp() {
+            document.addEventListener('input', (e) => {
+                if (e.target.matches('.data-input')) {
+                    const tableId = e.target.closest('table').id;
+                    const rowIndex = parseInt(e.target.dataset.row);
+                    const colIndex = parseInt(e.target.dataset.col);
+                    const value = parseInt(e.target.value, 10) || 0;
+                    
+                    const dataKey = `${selectedYear}-${selectedMonth}`;
+                    const isLeadTable = tableId === 'leads-data-table';
+                    const dataStore = isLeadTable ? leadDataStore : extraDataStore;
+
+                    if (dataStore[dataKey] && dataStore[dataKey][rowIndex]) {
+                        dataStore[dataKey][rowIndex].values[colIndex] = value;
+                        calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey]);
+                        saveDataToLocalStorage();
+                    }
+                }
+            });
+
+            const modal = document.getElementById('import-export-modal');
+            document.getElementById('import-export-btn').addEventListener('click', () => {
+                 const allData = { leads: leadDataStore, extra: extraDataStore };
+                 document.getElementById('import-export-data').value = JSON.stringify(allData, null, 2);
+                 modal.classList.add('active');
+            });
+             document.getElementById('close-modal-btn').addEventListener('click', () => modal.classList.remove('active'));
+             document.getElementById('import-btn').addEventListener('click', () => {
+                 try {
+                     const dataToImport = JSON.parse(document.getElementById('import-export-data').value);
+                     if (dataToImport.leads && dataToImport.extra) {
+                         leadDataStore = dataToImport.leads;
+                         extraDataStore = dataToImport.extra;
+                         saveDataToLocalStorage();
+                         handleDateChange();
+                         modal.classList.remove('active');
+                         alert('Данные успешно импортированы!');
+                     } else {
+                         alert('Ошибка: неверный формат данных.');
+                     }
+                 } catch(e) {
+                     alert('Ошибка: не удалось прочитать данные. Убедитесь, что текст вставлен правильно.');
+                     console.error("Import error:", e);
+                 }
+             });
+
+            document.getElementById('month-select').addEventListener('change', handleDateChange);
+            document.getElementById('year-select').addEventListener('change', handleDateChange);
+            document.getElementById('day-selector').addEventListener('change', () => { runCalculator(); runReverseCalculator(); });
+            document.getElementById('calculator-steps').addEventListener('input', runCalculator);
+            document.getElementById('reverse-calculator-steps').addEventListener('input', runReverseCalculator);
+            
+            loadDataFromLocalStorage();
+            populateSelectors(); 
+            initCombinedChart();
+            handleDateChange();
+        }
+        
+        // --- ЗАПУСК ПРИЛОЖЕНИЯ ---
+        document.addEventListener('DOMContentLoaded', setupApp);
+    </script>
+</body>
+</html>
